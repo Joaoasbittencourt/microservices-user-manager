@@ -1,0 +1,62 @@
+version: "3"
+services:
+  users-manager:
+    depends_on:
+      - db
+      - user-service
+    build:
+      context: ./users-manager
+      dockerfile: Dockerfile
+    environment:
+      - USER_SERVICE_URL=http://user-service:5000
+    ports:
+      - "3000:3000"
+    profiles:
+      - default
+  fake-store-service:
+    build:
+      context: ./fake-store-service
+      dockerfile: Dockerfile
+    ports:
+      - "8080:3000"
+    profiles:
+      - default
+    volumes:
+      - ./fake-store-service:/app
+    restart: always
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:5000"
+    environment:
+      - DB_CONNECTION=postgresql+psycopg2://root:root@db/user_db
+    depends_on:
+      - db
+    profiles:
+      - default
+    volumes:
+      - ./user-service:/app
+    restart: always
+  db:
+    image: postgres:15.1
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=user_db
+    cap_add:
+      - SYS_NICE # disables logs `mbind: Operation not permitted`
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "root", "-d", "user_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    profiles:
+      - default
+      - infra
